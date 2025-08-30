@@ -1,5 +1,5 @@
 import React from 'react';
-import { PollList } from '@/app/components/polls/poll-list';
+import { PollList } from '@/components/polls/PollList';
 
 export default function PollsPage() {
   return (

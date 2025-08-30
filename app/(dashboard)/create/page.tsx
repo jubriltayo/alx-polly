@@ -1,5 +1,5 @@
 import React from 'react';
-import { CreatePollForm } from '@/app/components/polls/create-poll-form';
+import { CreatePollForm } from '@/components/polls/CreatePollForm';
 
 export default function CreatePollPage() {
   return (

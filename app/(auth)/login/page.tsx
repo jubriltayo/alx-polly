@@ -1,5 +1,5 @@
 import React from 'react';
-import { LoginForm } from '@/app/components/auth/login-form';
+import { LoginForm } from '@/components/auth/LoginForm';
 
 export default function AuthPage() {
   return (

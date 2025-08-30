@@ -9,14 +9,14 @@ export function Navbar() {
           Alx-Polly
         </Link>
         <nav className="flex items-center gap-6">
-          <Link href="/polls" className="text-sm font-medium hover:underline">
+          <Link href="/dashboard" className="text-sm font-medium hover:underline">
             Polls
           </Link>
-          <Link href="/create-poll" className="text-sm font-medium hover:underline">
+          <Link href="/create" className="text-sm font-medium hover:underline">
             Create Poll
           </Link>
           <Button asChild variant="outline" size="sm">
-            <Link href="/auth">Login</Link>
+            <Link href="/login">Login</Link>
           </Button>
         </nav>
       </div>
