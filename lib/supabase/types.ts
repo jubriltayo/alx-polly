@@ -1,1 +1,11 @@
-// Placeholder for Supabase types. Generate with `supabase gen types typescript` after schema is set up.
+// Generate types with: npx supabase gen types typescript --project-id <your-project-id> --schema public > lib/supabase/types.ts
+
+// Example:
+// export type Database = {
+//   public: {
+//     Tables: { ... },
+//     Views: {},
+//     Functions: {},
+//     Enums: {},
+//   }
+// }

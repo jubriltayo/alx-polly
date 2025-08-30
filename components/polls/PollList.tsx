@@ -17,7 +17,7 @@ export function PollList() {
         <Card key={poll.id}>
           <CardHeader>
             <CardTitle>{poll.title}</CardTitle>
-            <CardDescription>{poll.votes} votes  b7 {poll.created}</CardDescription>
+            <CardDescription>{poll.votes} votes  by {poll.created}</CardDescription>
           </CardHeader>
           <CardContent>
             <p>Click to view poll details and vote</p>
@@ -40,7 +40,7 @@ export function PollList() {
         </CardContent>
         <CardFooter>
           <Button asChild variant="outline" className="w-full">
-            <Link href="/create-poll">Create Poll</Link>
+            <Link href="/create">Create Poll</Link>
           </Button>
         </CardFooter>
       </Card>
