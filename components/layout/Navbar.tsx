@@ -1,5 +1,5 @@
+import AuthButton from '@/components/auth/AuthButton';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 
 export function Navbar() {
   return (
@@ -15,9 +15,7 @@ export function Navbar() {
           <Link href="/create" className="text-sm font-medium hover:underline">
             Create Poll
           </Link>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/login">Login</Link>
-          </Button>
+          <AuthButton />
         </nav>
       </div>
     </header>

@@ -1,17 +1,68 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
-export function middleware(request: NextRequest) {
-  // Example: Protect dashboard routes
-  if (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/create')) {
-    // TODO: Check auth (e.g., cookie, Supabase session)
-    // If not authenticated, redirect to login
-    // return NextResponse.redirect(new URL('/login', request.url));
+export async function middleware(request: NextRequest) {
+  const supabase = createSupabaseClient(request)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const protectedRoutes = ['/dashboard', '/create']
+  const authRoutes = ['/login', '/register']
+  const currentPath = request.nextUrl.pathname
+
+  if (user && authRoutes.includes(currentPath)) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
-  // Allow public access to poll viewing
-  return NextResponse.next();
+
+  if (!user && protectedRoutes.some(path => currentPath.startsWith(path))) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  return NextResponse.next()
+}
+
+function createSupabaseClient(request: NextRequest) {
+  // Create an unmodified response
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          request.cookies.set({ name, value, ...options })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({ name, value, ...options })
+        },
+        remove(name: string, options: CookieOptions) {
+          request.cookies.set({ name, value: '', ...options })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({ name, value: '', ...options })
+        },
+      },
+    }
+  )
+
+  return supabase
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/create/:path*'],
+  matcher: ['/dashboard/:path*', '/create/:path*', '/login', '/register'],
 };

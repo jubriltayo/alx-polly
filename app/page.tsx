@@ -61,7 +61,7 @@ export default function Home() {
             </CardContent>
             <CardFooter>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/auth/register">Sign Up</Link>
+                <Link href="/register">Sign Up</Link>
               </Button>
             </CardFooter>
           </Card>
