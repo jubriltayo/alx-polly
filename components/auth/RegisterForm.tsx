@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { signUpWithEmail } from '@/lib/supabase/auth';
 import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
+import { isValidEmail } from '@/lib/utils/validation';
 
 export function RegisterForm() {
   const [email, setEmail] = useState<string>('');
@@ -18,6 +19,11 @@ export function RegisterForm() {
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMessage(null);
+
+    if (!isValidEmail(email)) {
+      setMessage('Please enter a valid email address.');
+      return;
+    }
 
     if (password !== confirmPassword) {
       setMessage('Passwords do not match.');

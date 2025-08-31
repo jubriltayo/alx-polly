@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { useState } from 'react'
 import { signInWithEmail, signUpWithEmail } from '@/lib/supabase/auth' // Import auth utilities
 import { useRouter } from 'next/navigation' // Import useRouter
+import { isValidEmail } from '@/lib/utils/validation'
 
 export function LoginForm() {
   const [email, setEmail] = useState<string>('')
@@ -17,6 +18,12 @@ export function LoginForm() {
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setMessage(null)
+
+    if (!isValidEmail(email)) {
+      setMessage('Please enter a valid email address.')
+      return
+    }
+
     const { error } = await signInWithEmail(email, password)
     if (error) {
       setMessage(error.message)
@@ -30,6 +37,12 @@ export function LoginForm() {
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setMessage(null)
+
+    if (!isValidEmail(email)) {
+      setMessage('Please enter a valid email address.')
+      return
+    }
+
     const { error } = await signUpWithEmail(email, password)
     if (error) {
       setMessage(error.message)
