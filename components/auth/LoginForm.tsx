@@ -3,44 +3,33 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
+import { signInWithEmail, signUpWithEmail } from '@/lib/supabase/auth' // Import auth utilities
 
 export function LoginForm() {
   const [email, setEmail] = useState<string>('')
   const [password, setPassword] = useState<string>('')
-  const [view, setView] = useState('sign-in')
-
-  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const supabase = createClient()
-    await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${location.origin}/api/auth/callback`,
-      },
-    })
-    setView('check-email')
-  }
+  const [view, setView] = useState('sign-in') // 'sign-in' or 'check-email'
+  const [message, setMessage] = useState<string | null>(null)
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const supabase = createClient()
-    await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    setMessage(null)
+    const { error } = await signInWithEmail(email, password)
+    if (error) {
+      setMessage(error.message)
+    }
   }
 
-  const handleGoogleSignIn = async () => {
-    const supabase = createClient()
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${location.origin}/api/auth/callback`,
-      },
-    })
+  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setMessage(null)
+    const { error } = await signUpWithEmail(email, password)
+    if (error) {
+      setMessage(error.message)
+    } else {
+      setView('check-email')
+    }
   }
 
   return (
@@ -76,6 +65,7 @@ export function LoginForm() {
               value={password}
               placeholder="••••••••"
             />
+            {message && <p className="text-red-500 text-center text-sm">{message}</p>}
             {view === 'sign-in' ? (
               <>
                 <Button>Sign In</Button>
@@ -106,13 +96,14 @@ export function LoginForm() {
               </>
             )}
           </form>
-          <Button
+          {/* Temporarily remove Google Sign-in as we're focusing on email/password */}
+          {/* <Button
             variant="outline"
             className="w-full mt-4"
             onClick={handleGoogleSignIn}
           >
             Sign in with Google
-          </Button>
+          </Button> */}
         </>
       )}
     </div>

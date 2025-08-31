@@ -1,9 +1,9 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-
-export function createClient() {
+ 
+export function createSupabaseServerClient() {
   const cookieStore = cookies()
-
+ 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -16,18 +16,18 @@ export function createClient() {
           try {
             cookieStore.set({ name, value, ...options })
           } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+            // The `cookies().set()` method can only be called in a Server Action or Route Handler.
+            // This error is typically caught and handled by Next.js automatically.
+            // For example, in a Server Component, `cookies().set` would throw this error,
+            // but it's acceptable for read operations.
+            console.error('Error setting cookie on server:', error);
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: '', ...options })
           } catch (error) {
-            // The `delete` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+            console.error('Error removing cookie on server:', error);
           }
         },
       },

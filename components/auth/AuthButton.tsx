@@ -1,19 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { serverSignOut } from '@/lib/actions/auth';
 
 export default async function AuthButton() {
-  const supabase = createClient()
+  const supabase = createSupabaseServerClient()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   const signOut = async () => {
-    'use server'
-
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await serverSignOut();
     return redirect('/login')
   }
 
