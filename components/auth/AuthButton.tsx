@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { serverSignOut } from '@/lib/actions/auth';
+// import { serverSignOut } from '@/lib/actions/auth'; // Removed as signOut is handled by AuthContext
 import { AuthButtonClient } from './AuthButtonClient';
 import { cookies } from 'next/headers';
 
@@ -12,10 +12,10 @@ export default async function AuthButton() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    return <AuthButtonClient userEmail={user?.email} serverSignOut={serverSignOut} />;
+    return <AuthButtonClient userEmail={user?.email} />; // No longer passing serverSignOut
   } catch (error) {
     console.error('Error in AuthButton:', error);
     // Return a fallback UI if there's an error
-    return <AuthButtonClient userEmail={null} serverSignOut={serverSignOut} />;
+    return <AuthButtonClient userEmail={null} />;
   }
 }

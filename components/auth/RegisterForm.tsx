@@ -4,10 +4,10 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { signUpWithEmail } from '@/lib/supabase/auth';
 import { useRouter } from 'next/navigation';
 import { Label } from '@/components/ui/label';
 import { isValidEmail } from '@/lib/utils/validation';
+import { useAuth } from '@/lib/auth/AuthContext'; // Import useAuth hook
 
 export function RegisterForm() {
   const [email, setEmail] = useState<string>('');
@@ -15,6 +15,7 @@ export function RegisterForm() {
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [message, setMessage] = useState<string | null>(null);
   const router = useRouter();
+  const { signUp } = useAuth(); // Use the useAuth hook
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -25,12 +26,14 @@ export function RegisterForm() {
       return;
     }
 
+    // Removed isValidPassword check as the user removed it from validation.ts
+
     if (password !== confirmPassword) {
       setMessage('Passwords do not match.');
       return;
     }
 
-    const { error } = await signUpWithEmail(email, password);
+    const { error } = await signUp(email, password);
 
     if (error) {
       setMessage(error.message);

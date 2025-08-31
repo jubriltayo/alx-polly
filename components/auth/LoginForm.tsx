@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useState } from 'react'
-import { signInWithEmail, signUpWithEmail } from '@/lib/supabase/auth' // Import auth utilities
 import { useRouter } from 'next/navigation' // Import useRouter
 import { isValidEmail } from '@/lib/utils/validation'
+import { useAuth } from '@/lib/auth/AuthContext' // Import useAuth hook
 
 export function LoginForm() {
   const [email, setEmail] = useState<string>('')
@@ -14,6 +14,7 @@ export function LoginForm() {
   const [view, setView] = useState('sign-in') // 'sign-in' or 'check-email'
   const [message, setMessage] = useState<string | null>(null)
   const router = useRouter() // Initialize useRouter
+  const { signIn, signUp } = useAuth() // Use the useAuth hook
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -24,13 +25,15 @@ export function LoginForm() {
       return
     }
 
-    const { error } = await signInWithEmail(email, password)
+    // Removed isValidPassword check as the user removed it from validation.ts
+
+    const { error } = await signIn(email, password)
     if (error) {
       setMessage(error.message)
     } else {
-      // Redirect to dashboard on successful login
-      router.push('/dashboard')
-      router.refresh() // Force re-render of Server Components
+      // Redirection is handled by AuthContext now, no need for router.push/refresh here
+      // router.push('/dashboard')
+      // router.refresh() 
     }
   }
 
@@ -43,12 +46,15 @@ export function LoginForm() {
       return
     }
 
-    const { error } = await signUpWithEmail(email, password)
+    // Removed isValidPassword check as the user removed it from validation.ts
+
+    const { error } = await signUp(email, password)
     if (error) {
       setMessage(error.message)
     } else {
       setView('check-email')
-      router.refresh() // Force re-render of Server Components
+      // Redirection is handled by AuthContext now, no need for router.refresh here
+      // router.refresh()
     }
   }
 
