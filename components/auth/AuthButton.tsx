@@ -1,35 +1,21 @@
-import { createSupabaseServerClient } from '@/lib/supabase/server'
-import Link from 'next/link'
-import { redirect } from 'next/navigation'
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { serverSignOut } from '@/lib/actions/auth';
+import { AuthButtonClient } from './AuthButtonClient';
+import { cookies } from 'next/headers';
 
 export default async function AuthButton() {
-  const supabase = createSupabaseServerClient()
+  try {
+    const cookieStore = await cookies();
+    const supabase = createSupabaseServerClient(cookieStore);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const signOut = async () => {
-    await serverSignOut();
-    return redirect('/login')
+    return <AuthButtonClient userEmail={user?.email} serverSignOut={serverSignOut} />;
+  } catch (error) {
+    console.error('Error in AuthButton:', error);
+    // Return a fallback UI if there's an error
+    return <AuthButtonClient userEmail={null} serverSignOut={serverSignOut} />;
   }
-
-  return user ? (
-    <div className="flex items-center gap-4">
-      Hey, {user.email}!
-      <form action={signOut}>
-        <button className="py-2 px-4 rounded-md no-underline bg-btn-background hover:bg-btn-background-hover">
-          Logout
-        </button>
-      </form>
-    </div>
-  ) : (
-    <Link
-      href="/login"
-      className="py-2 px-3 flex rounded-md no-underline bg-btn-background hover:bg-btn-background-hover"
-    >
-      Login
-    </Link>
-  )
 }

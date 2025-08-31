@@ -1,7 +1,10 @@
-import { supabase } from './client';
+import { createClient } from './client';
 import { createSupabaseServerClient } from './server';
 import { redirect } from 'next/navigation';
-import { type AuthProviders } from '@/types/auth'; // Import the new type
+import { type AuthProviders } from '@/types/auth';
+
+// Get a client-side Supabase instance for use in client components
+const supabase = createClient();
 
 export async function signInWithEmail(email: string, password: string) {
   return supabase.auth.signInWithPassword({ email, password });

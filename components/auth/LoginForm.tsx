@@ -5,12 +5,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useState } from 'react'
 import { signInWithEmail, signUpWithEmail } from '@/lib/supabase/auth' // Import auth utilities
+import { useRouter } from 'next/navigation' // Import useRouter
 
 export function LoginForm() {
   const [email, setEmail] = useState<string>('')
   const [password, setPassword] = useState<string>('')
   const [view, setView] = useState('sign-in') // 'sign-in' or 'check-email'
   const [message, setMessage] = useState<string | null>(null)
+  const router = useRouter() // Initialize useRouter
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -18,6 +20,10 @@ export function LoginForm() {
     const { error } = await signInWithEmail(email, password)
     if (error) {
       setMessage(error.message)
+    } else {
+      // Redirect to dashboard on successful login
+      router.push('/dashboard')
+      router.refresh() // Force re-render of Server Components
     }
   }
 
@@ -29,6 +35,7 @@ export function LoginForm() {
       setMessage(error.message)
     } else {
       setView('check-email')
+      router.refresh() // Force re-render of Server Components
     }
   }
 

@@ -1,10 +1,26 @@
-'use server';
+// lib/actions/auth.ts
+'use server'
 
-import { redirect } from 'next/navigation';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 
 export async function serverSignOut() {
-  const supabase = createSupabaseServerClient();
-  await supabase.auth.signOut();
-  return redirect('/login');
+  try {
+    const cookieStore = await cookies()
+    const supabase = createSupabaseServerClient(cookieStore)
+    
+    const { error } = await supabase.auth.signOut()
+    
+    if (error) {
+      console.error('Sign out error:', error)
+      throw error
+    }
+  } catch (error) {
+    console.error('Error in serverSignOut:', error)
+    // You might want to handle this error differently
+  }
+  
+  // Redirect after sign out
+  redirect('/login')
 }
