@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { signInWithEmail, signUpWithEmail, signOutUser, signInWithOAuth, getUserSession } from '@/lib/supabase/auth';
@@ -28,6 +28,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
 
   useEffect(() => {
@@ -46,7 +47,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (event === 'SIGNED_OUT') {
         router.push('/login');
       } else if (event === 'SIGNED_IN') {
-        router.push('/dashboard');
+        // Only redirect to dashboard if coming from an auth page
+        if (pathname === '/login' || pathname === '/register' || pathname === '/auth-code-error') {
+          router.push('/dashboard');
+        }
       }
       router.refresh();
     });
@@ -54,7 +58,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [router, supabase]);
+  }, [router, supabase, pathname]);
 
   const contextValue: AuthContextType = {
     user,

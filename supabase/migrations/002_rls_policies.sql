@@ -1,4 +1,5 @@
--- Enable RLS
+-- supabase/migrations/002_rls_policies.sql
+
 ALTER TABLE polls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE poll_options ENABLE ROW LEVEL SECURITY;
 ALTER TABLE votes ENABLE ROW LEVEL SECURITY;
@@ -21,8 +22,8 @@ CREATE POLICY "Creators can delete their polls" ON polls
 CREATE POLICY "Poll options are viewable with their polls" ON poll_options
     FOR SELECT USING (
         EXISTS (
-            SELECT 1 FROM polls 
-            WHERE polls.id = poll_options.poll_id 
+            SELECT 1 FROM polls
+            WHERE polls.id = poll_options.poll_id
             AND polls.is_active = true
         )
     );
@@ -30,8 +31,8 @@ CREATE POLICY "Poll options are viewable with their polls" ON poll_options
 CREATE POLICY "Poll creators can manage options" ON poll_options
     FOR ALL USING (
         EXISTS (
-            SELECT 1 FROM polls 
-            WHERE polls.id = poll_options.poll_id 
+            SELECT 1 FROM polls
+            WHERE polls.id = poll_options.poll_id
             AND polls.creator_id = auth.uid()
         )
     );
@@ -40,14 +41,14 @@ CREATE POLICY "Poll creators can manage options" ON poll_options
 CREATE POLICY "Users can vote once per poll" ON votes
     FOR INSERT WITH CHECK (
         EXISTS (
-            SELECT 1 FROM polls 
-            WHERE polls.id = poll_id 
+            SELECT 1 FROM polls
+            WHERE polls.id = poll_id
             AND polls.is_active = true
         ) AND (
             auth.uid() IS NULL OR
             NOT EXISTS (
-                SELECT 1 FROM votes 
-                WHERE votes.poll_id = poll_id 
+                SELECT 1 FROM votes
+                WHERE votes.poll_id = poll_id
                 AND votes.user_id = auth.uid()
             )
         )

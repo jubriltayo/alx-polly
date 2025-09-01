@@ -1,3 +1,5 @@
+-- supabase/migrations/001_create_schema.sql
+
 -- Enhanced polls table with QR tracking
 CREATE TABLE polls (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -36,12 +38,12 @@ CREATE TABLE votes (
 );
 
 -- Comprehensive duplicate vote prevention indexes
-CREATE UNIQUE INDEX idx_votes_user_poll 
-    ON votes(poll_id, user_id) 
+CREATE UNIQUE INDEX idx_votes_user_poll
+    ON votes(poll_id, user_id)
     WHERE user_id IS NOT NULL;
 
-CREATE UNIQUE INDEX idx_votes_anonymous_poll 
-    ON votes(poll_id, ip_address, session_fingerprint) 
+CREATE UNIQUE INDEX idx_votes_anonymous_poll
+    ON votes(poll_id, ip_address, session_fingerprint)
     WHERE user_id IS NULL;
 
 CREATE INDEX idx_votes_poll_created ON votes(poll_id, created_at DESC);

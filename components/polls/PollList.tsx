@@ -1,49 +1,46 @@
-import React from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import Link from 'next/link';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
+import { PollCard } from './PollCard';
+import Link from 'next/link'; // Keep Link for Create New Poll button
+import { Button } from '@/components/ui/button'; // Keep Button for Create New Poll button
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'; // Keep Card for the 'Create New Poll' card
 
-export function PollList() {
-  // Placeholder data for polls
-  const polls = [
-    { id: 1, title: 'Favorite Programming Language', votes: 42, created: '2 days ago' },
-    { id: 2, title: 'Best Frontend Framework', votes: 36, created: '5 days ago' },
-    { id: 3, title: 'Most Useful Developer Tool', votes: 28, created: '1 week ago' },
-  ];
+export async function PollList() {
+  const cookieStore = await cookies(); // Await cookies()
+  const supabase = createSupabaseServerClient(cookieStore);
+
+  const { data: polls, error } = await supabase
+    .from('polls')
+    .select('*, poll_options(*)')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching polls:', error);
+    return <p className="text-red-500">Error loading polls.</p>;
+  }
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {polls.map((poll) => (
-        <Card key={poll.id}>
+      {polls.length === 0 ? (
+        <Card className="border-dashed">
           <CardHeader>
-            <CardTitle>{poll.title}</CardTitle>
-            <CardDescription>{poll.votes} votes  by {poll.created}</CardDescription>
+            <CardTitle>No Polls Yet</CardTitle>
+            <CardDescription>Start a new poll to gather opinions</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Click to view poll details and vote</p>
+            <p>Create your own custom poll with multiple options.</p>
           </CardContent>
           <CardFooter>
-            <Button asChild className="w-full">
-              <Link href={`/polls/${poll.id}`}>View Poll</Link>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/create">Create Poll</Link>
             </Button>
           </CardFooter>
         </Card>
-      ))}
-      
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle>Create New Poll</CardTitle>
-          <CardDescription>Start a new poll to gather opinions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p>Create your own custom poll with multiple options</p>
-        </CardContent>
-        <CardFooter>
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/create">Create Poll</Link>
-          </Button>
-        </CardFooter>
-      </Card>
+      ) : (
+        polls.map((poll) => (
+          <PollCard key={poll.id} poll={poll} />
+        ))
+      )}
     </div>
   );
 }
