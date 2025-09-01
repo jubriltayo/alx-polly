@@ -10,7 +10,7 @@ export function Navbar() {
         </Link>
         <nav className="flex items-center gap-6">
           <Link href="/dashboard" className="text-sm font-medium hover:underline">
-            Polls
+            My polls
           </Link>
           <Link href="/create" className="text-sm font-medium hover:underline">
             Create Poll

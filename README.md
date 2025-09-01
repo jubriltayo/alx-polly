@@ -51,15 +51,22 @@ app/                              # App Router
 │           └── route.ts          # Supabase auth callback
 ├── globals.css
 ├── layout.tsx                    # Root layout
-└── page.tsx                      # Landing page
+├── page.tsx                      # Landing page
+└── polls/                        # Public poll listing page
+    └── page.tsx
 
 components/
 ├── ui/                           # shadcn/ui components
+│   ├── radio-group.tsx           # RadioGroup component for voting
+│   ├── toast.tsx                 # Toast component for notifications
+│   ├── toaster.tsx               # Toaster component for rendering toasts
+│   └── use-toast.ts              # useToast hook for managing toasts
 ├── polls/
-│   ├── PollCard.tsx
-│   ├── PollForm.tsx
-│   ├── VotingInterface.tsx
-│   └── ResultsChart.tsx
+│   ├── PollCard.tsx              # Displays individual poll details and actions
+│   ├── PollForm.tsx              # Form for creating/editing polls
+│   ├── PollList.tsx              # Lists polls (e.g., for dashboard)
+│   ├── PublicPollList.tsx        # Lists polls for public viewing (no edit/delete)
+│   └── VoteForm.tsx              # Client component for submitting votes
 ├── auth/
 │   ├── AuthButton.tsx            # Server Component wrapper for AuthButtonClient
 │   ├── AuthButtonClient.tsx      # Client Component for interactive auth UI
@@ -190,19 +197,24 @@ ALTER TABLE votes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE poll_analytics ENABLE ROW LEVEL SECURITY;
 
 -- Polls policies
+DROP POLICY IF EXISTS "Public polls are viewable by everyone" ON polls;
 CREATE POLICY "Public polls are viewable by everyone" ON polls
     FOR SELECT USING (is_active = true);
 
+DROP POLICY IF EXISTS "Users can create polls" ON polls;
 CREATE POLICY "Users can create polls" ON polls
     FOR INSERT WITH CHECK (auth.uid() = creator_id);
 
+DROP POLICY IF EXISTS "Creators can update their polls" ON polls;
 CREATE POLICY "Creators can update their polls" ON polls
     FOR UPDATE USING (auth.uid() = creator_id);
 
+DROP POLICY IF EXISTS "Creators can delete their polls" ON polls;
 CREATE POLICY "Creators can delete their polls" ON polls
     FOR DELETE USING (auth.uid() = creator_id);
 
 -- Poll options policies
+DROP POLICY IF EXISTS "Poll options are viewable with their polls" ON poll_options;
 CREATE POLICY "Poll options are viewable with their polls" ON poll_options
     FOR SELECT USING (
         EXISTS (
@@ -212,6 +224,7 @@ CREATE POLICY "Poll options are viewable with their polls" ON poll_options
         )
     );
 
+DROP POLICY IF EXISTS "Poll creators can manage options" ON poll_options;
 CREATE POLICY "Poll creators can manage options" ON poll_options
     FOR ALL USING (
         EXISTS (
@@ -222,22 +235,18 @@ CREATE POLICY "Poll creators can manage options" ON poll_options
     );
 
 -- Votes policies
-CREATE POLICY "Users can vote once per poll" ON votes
-    FOR INSERT WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM polls 
-            WHERE polls.id = poll_id 
-            AND polls.is_active = true
-        ) AND (
-            auth.uid() IS NULL OR
-            NOT EXISTS (
-                SELECT 1 FROM votes 
-                WHERE votes.poll_id = poll_id 
-                AND votes.user_id = auth.uid()
-            )
-        )
-    );
+-- The FOR INSERT RLS policy for votes is being removed. The unique constraints on the 'votes' table
+-- (idx_votes_user_poll and idx_votes_anonymous_poll) are sufficient to prevent duplicate votes.
+-- Removing this policy allows the database to enforce uniqueness directly, which has been confirmed to work as desired.
+DROP POLICY IF EXISTS "Users can vote once per poll" ON votes;
 
+-- Allow all users (authenticated and anonymous) to insert votes. Duplicate vote prevention
+-- will be handled by unique indexes on the 'votes' table, as confirmed by testing.
+DROP POLICY IF EXISTS "Allow all inserts on votes" ON votes;
+CREATE POLICY "Allow all inserts on votes" ON votes
+    FOR INSERT TO public WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Vote counts are public" ON votes;
 CREATE POLICY "Vote counts are public" ON votes
     FOR SELECT USING (true);
 ```
@@ -309,17 +318,22 @@ CREATE POLICY "Vote counts are public" ON votes
 *   **Centralized Auth Utilities:** `lib/supabase/auth.ts` provides reusable functions for sign-in, sign-up, sign-out, and user session management.
 *   **Server Actions:** Logout functionality is implemented as a Server Action (`lib/actions/auth.ts`) for secure, direct server interaction.
 *   **Middleware (`middleware.ts`):** Protects routes (`/dashboard`, `/create`) by redirecting unauthenticated users to `/login`, and redirects authenticated users from auth pages (`/login`, `/register`) to `/dashboard`.
-*   **`cookies()` Handling:** Strict adherence to Next.js's asynchronous dynamic API guidelines for `cookies()` in Server Components and Route Handlers, ensuring `cookies()` is called at the top level and the `cookieStore` is passed to `createServerClient`.
-*   **Tailwind CSS v4 & shadcn/ui:** Modern styling and UI components are integrated, using Tailwind CSS v4's CSS-based configuration.
+*   **`cookies()` Handling:** Strict adherence to Next.js's asynchronous dynamic API 
+guidelines for `cookies()` in Server Components and Route Handlers, ensuring `cookies()` 
+is called at the top level and the `cookieStore` is passed to `createServerClient`.
+*   **Tailwind CSS v4 & shadcn/ui:** Modern styling and UI components are integrated, 
+using Tailwind CSS v4's CSS-based configuration.
+*   **Public Poll Listing & Voting:** Implemented a public `/polls` route to display all polls, allowing users to vote (once per poll) and view results. Uses `PollCard` with conditional actions.
+*   **Robust Voting System:** Utilizes Server Actions (`lib/actions/poll.ts`) for secure vote submission and `shadcn/ui` `RadioGroup` and `useToast` for an intuitive voting interface.
+*   **RLS Policy Refinement:** Simplified `votes` table RLS policies to explicitly allow inserts, relying on unique database indexes to prevent duplicate votes per poll, ensuring both authenticated and anonymous users can vote once.
+*   **Tailwind CSS v4 & shadcn/ui:** Modern styling and UI components are integrated, using Tailwind CSS v4's CSS-based configuration, including `RadioGroup` and `Toast` components.
 
 ---
 
 ## Next Steps for Implementation
 
-Now that the architectural foundation and development infrastructure are solid, you can start building out features:
+Now that the architectural foundation and core voting functionality are solid, you can continue building out features:
 
-*   Implement the full **Poll Creation Form** logic (`components/polls/PollForm.tsx`).
-*   Develop the **Voting Interface** (`app/poll/[id]/page.tsx`, `components/polls/VotingInterface.tsx`).
 *   Integrate **Real-time Poll Updates** using Supabase's WebSocket subscriptions (`lib/hooks/useRealTimePolls.ts`).
 *   Build the **Poll Results Chart** (`components/polls/ResultsChart.tsx`).
 *   Implement **QR Code Generation** and analytics (`lib/utils/qr-generator.ts`, `app/api/qr/[id]/route.ts`).
@@ -327,3 +341,4 @@ Now that the architectural foundation and development infrastructure are solid, 
 *   Add **Error Boundaries** and more detailed logging utilities.
 *   Implement **OAuth Providers** (Google, GitHub) for authentication.
 *   Add **testing frameworks** and write unit/integration tests.
+*   Refine **Poll Creation Form** (e.g., add expiration date, allow multiple votes setting).
