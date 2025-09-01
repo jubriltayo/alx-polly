@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { PollSchema } from '@/lib/utils/poll-validation';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 export async function createPoll(formData: FormData) {
   const cookieStore = await cookies();
@@ -212,5 +212,60 @@ export async function updatePoll(formData: FormData) {
     }
     console.error('Unexpected error during poll update:', error);
     throw new Error('An unexpected error occurred during update.');
+  }
+}
+
+export async function submitVote(formData: FormData) {
+  const cookieStore = cookies();
+  const supabase = createSupabaseServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const pollId = formData.get('pollId') as string;
+  const optionId = formData.get('optionId') as string;
+
+  if (!pollId || !optionId) {
+    return { error: 'Poll ID and selected option are required.' };
+  }
+
+  try {
+    const headersList = headers();
+    const ipAddress = headersList.get('x-forwarded-for') || headersList.get('x-real-ip') || 'UNKNOWN';
+    const userAgent = headersList.get('user-agent') || 'UNKNOWN';
+    const sessionFingerprint = cookieStore.get('session_fingerprint')?.value || 'UNKNOWN'; // You might want a more robust way to generate this
+
+    let voteData: any = {
+      poll_id: pollId,
+      option_id: optionId,
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      session_fingerprint: sessionFingerprint,
+    };
+
+    if (user) {
+      voteData.user_id = user.id;
+    }
+
+    const { error } = await supabase
+      .from('votes')
+      .insert(voteData);
+
+    if (error) {
+      if (error.code === '23505') { // Unique constraint violation
+        return { error: 'You have already voted in this poll.' };
+      }
+      console.error('Error submitting vote:', error);
+      return { error: error.message || 'Failed to submit vote.' };
+    }
+
+    revalidatePath(`/poll/${pollId}`);
+    revalidatePath(`/poll/${pollId}/results`); // Revalidate results page as well
+    redirect(`/poll/${pollId}/results`);
+
+  } catch (error) {
+    if (error && typeof error === 'object' && 'message' in error && (error.message as string).includes('NEXT_REDIRECT')) {
+      throw error;
+    }
+    console.error('Unexpected error during vote submission:', error);
+    return { error: 'An unexpected error occurred.' };
   }
 }

@@ -12,9 +12,10 @@ type Poll = Database['public']['Tables']['polls']['Row'] & { poll_options: Datab
 
 interface PollCardProps {
   poll: Poll;
+  showActions?: boolean; // New prop to control action button visibility
 }
 
-export function PollCard({ poll }: PollCardProps) {
+export function PollCard({ poll, showActions = true }: PollCardProps) {
   const [deleteError, setDeleteError] = useState<string | null>(null); // State for delete error
   // Placeholder for vote count - actual vote count would require fetching from the 'votes' table
   const voteCount = 0; // Temporarily set to 0 until vote fetching is implemented
@@ -34,27 +35,34 @@ export function PollCard({ poll }: PollCardProps) {
         {deleteError && <p className="text-red-500 text-sm mt-2">{deleteError}</p>}
       </CardContent>
       <CardFooter className="flex justify-between space-x-2">
-        <Button asChild variant="outline" className="flex-1">
-          <Link href={`/poll/edit/${poll.id}`}>Edit</Link>
+        <Button asChild className="flex-1">
+          <Link href={`/poll/${poll.id}`}>Vote</Link>
         </Button>
-        <form
-          action={async (formData) => {
-            if (!confirm('Are you sure you want to delete this poll?')) {
-              return;
-            }
-            setDeleteError(null); // Clear previous errors
-            try {
-              await deletePoll(formData);
-            } catch (error: any) {
-              setDeleteError(error.message || 'Failed to delete poll.');
-            }
-          }}
-        >
-          <input type="hidden" name="id" value={poll.id} />
-          <Button type="submit" variant="destructive" className="flex-1">
-            Delete
-          </Button>
-        </form>
+        {showActions && (
+          <>
+            <Button asChild variant="outline" className="flex-1">
+              <Link href={`/poll/edit/${poll.id}`}>Edit</Link>
+            </Button>
+            <form
+              action={async (formData) => {
+                if (!confirm('Are you sure you want to delete this poll?')) {
+                  return;
+                }
+                setDeleteError(null); // Clear previous errors
+                try {
+                  await deletePoll(formData);
+                } catch (error: any) {
+                  setDeleteError(error.message || 'Failed to delete poll.');
+                }
+              }}
+            >
+              <input type="hidden" name="id" value={poll.id} />
+              <Button type="submit" variant="destructive" className="flex-1">
+                Delete
+              </Button>
+            </form>
+          </>
+        )}
       </CardFooter>
     </Card>
   );

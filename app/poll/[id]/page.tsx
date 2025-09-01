@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
 import type { Database } from "@/lib/supabase/types"
+import { VoteForm } from "@/components/polls/VoteForm"
 
 interface PollPageProps {
   params: Promise<{
@@ -52,6 +53,10 @@ export default async function PollPage(props: PollPageProps) {
         ) : (
           <p>No options found for this poll.</p>
         )}
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Cast Your Vote</h2>
+          <VoteForm pollId={id} options={poll.poll_options} />
+        </div>
       </div>
     </div>
   )

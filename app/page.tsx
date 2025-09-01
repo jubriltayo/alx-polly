@@ -10,7 +10,7 @@ export default function Home() {
         <p className="text-xl text-gray-600 mb-8">Create, share, and vote on polls with ease</p>
         <div className="flex justify-center gap-4">
           <Button asChild size="lg">
-            <Link href="/dashboard">Browse Polls</Link>
+            <Link href="/polls">Browse Polls</Link>
           </Button>
           <Button asChild variant="outline" size="lg">
             <Link href="/create">Create Poll</Link>
@@ -46,7 +46,7 @@ export default function Home() {
             </CardContent>
             <CardFooter>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/dashboard">View Polls</Link>
+                <Link href="/polls">View Polls</Link>
               </Button>
             </CardFooter>
           </Card>
