@@ -4,15 +4,16 @@ import { notFound } from "next/navigation"
 import type { Database } from "@/lib/supabase/types"
 
 interface PollResultsPageProps {
-  params: {
-    id: string
-  }
+  params: Promise<{
+    id: string;
+  }>;
 }
 
 type PollOptionWithVoteCount = Database["public"]["Tables"]["poll_options"]["Row"] & { vote_count: number }
 
-export default async function PollResultsPage({ params }: PollResultsPageProps) {
-  const id = params.id
+export default async function PollResultsPage(props: PollResultsPageProps) {
+  const params = await props.params;
+  const id = params.id;
 
   const cookieStore = cookies()
   const supabase = createSupabaseServerClient(cookieStore)

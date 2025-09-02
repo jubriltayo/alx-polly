@@ -56,7 +56,7 @@ export async function createPoll(formData: FormData) {
     }
 
     revalidatePath('/dashboard');
-    redirect(`/poll/${pollId}`);
+    redirect('/polls?status=success&message=Poll+created+successfully!');
 
   } catch (error) {
     // Check if the error is a Next.js redirect error and re-throw it
@@ -116,7 +116,7 @@ export async function deletePoll(formData: FormData) {
   } catch (error) {
     // Check if the error is a Next.js redirect error and re-throw it
     if (error && typeof error === 'object' && 'message' in error && (error.message as string).includes('NEXT_REDIRECT')) {
-      throw error; 
+      throw error;
     }
     console.error('Unexpected error during poll deletion:', error);
     throw new Error('An unexpected error occurred during deletion.');
@@ -208,7 +208,7 @@ export async function updatePoll(formData: FormData) {
   } catch (error) {
     // Check if the error is a Next.js redirect error and re-throw it
     if (error && typeof error === 'object' && 'message' in error && (error.message as string).includes('NEXT_REDIRECT')) {
-      throw error; 
+      throw error;
     }
     console.error('Unexpected error during poll update:', error);
     throw new Error('An unexpected error occurred during update.');
@@ -216,7 +216,7 @@ export async function updatePoll(formData: FormData) {
 }
 
 export async function submitVote(formData: FormData) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -228,7 +228,7 @@ export async function submitVote(formData: FormData) {
   }
 
   try {
-    const headersList = headers();
+    const headersList = await headers();
     const ipAddress = headersList.get('x-forwarded-for') || headersList.get('x-real-ip') || 'UNKNOWN';
     const userAgent = headersList.get('user-agent') || 'UNKNOWN';
     const sessionFingerprint = cookieStore.get('session_fingerprint')?.value || 'UNKNOWN'; // You might want a more robust way to generate this

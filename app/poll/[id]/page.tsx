@@ -37,26 +37,12 @@ export default async function PollPage(props: PollPageProps) {
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-4">{poll.title}</h1>
-      {poll.description && <p className="text-gray-600 mb-6">{poll.description}</p>}
+      <h1 className="text-4xl font-extrabold mb-4 text-center">{poll.title}</h1>
+      {poll.description && <p className="text-gray-600 mb-6 text-center">{poll.description}</p>}
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Options:</h2>
-        {poll.poll_options.length > 0 ? (
-          <ul className="list-disc pl-5">
-            {poll.poll_options.map((opt) => (
-              <li key={opt.id} className="text-lg">
-                {opt.text}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No options found for this poll.</p>
-        )}
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4">Cast Your Vote</h2>
-          <VoteForm pollId={id} options={poll.poll_options} />
-        </div>
+      <div className="mt-8 max-w-md mx-auto p-6 bg-white shadow-lg rounded-lg">
+        <h2 className="text-2xl font-semibold mb-6 text-center">Cast Your Vote</h2>
+        <VoteForm pollId={id} options={poll.poll_options} />
       </div>
     </div>
   )
