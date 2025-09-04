@@ -1,34 +1,36 @@
 'use server';
 
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { PollSchema } from '@/lib/utils/poll-validation';
 import { cookies, headers } from 'next/headers';
+import { getAuthenticatedUser } from '@/lib/utils/auth-helpers';
+import { handleNextRedirectError } from '@/lib/utils/error-helpers';
 
 export async function createPoll(formData: FormData) {
-  const cookieStore = await cookies();
-  const supabase = createSupabaseServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
+  const { user, supabase } = await getAuthenticatedUser();
 
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
   const options = formData.getAll('options[]') as string[];
 
-  // Basic server-side validation
-  if (!title || options.length < 2 || options.some(option => !option.trim())) {
-    return { error: 'Title and at least two non-empty options are required.' };
+  const parsed = PollSchema.safeParse({
+    title,
+    description: description || undefined, // Zod treats empty string as valid for optional string
+    options: options.filter(option => option.trim() !== ''),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues.map(issue => issue.message).join(', ') };
   }
+
+  const validatedData = parsed.data;
 
   try {
     const { data: pollData, error: pollError } = await supabase
       .from('polls')
-      .insert({ title, description, creator_id: user.id })
+      .insert({ title: validatedData.title, description: validatedData.description, creator_id: user.id })
       .select()
       .single();
 
@@ -39,7 +41,7 @@ export async function createPoll(formData: FormData) {
 
     const pollId = pollData.id;
 
-    const optionsToInsert = options.map((optionText, index) => ({
+    const optionsToInsert = validatedData.options.map((optionText, index) => ({
       poll_id: pollId,
       text: optionText,
       order_index: index,
@@ -51,7 +53,7 @@ export async function createPoll(formData: FormData) {
 
     if (optionsError) {
       console.error('Error creating poll options:', optionsError);
-      // Optionally, roll back poll creation here
+      await supabase.from('polls').delete().eq('id', pollId); // Rollback poll creation
       return { error: optionsError.message || 'Failed to create poll options.' };
     }
 
@@ -59,23 +61,14 @@ export async function createPoll(formData: FormData) {
     redirect('/polls?status=success&message=Poll+created+successfully!');
 
   } catch (error) {
-    // Check if the error is a Next.js redirect error and re-throw it
-    if (error && typeof error === 'object' && 'message' in error && (error.message as string).includes('NEXT_REDIRECT')) {
-      throw error;
-    }
+    handleNextRedirectError(error);
     console.error('Unexpected error during poll creation:', error);
     return { error: 'An unexpected error occurred.' };
   }
 }
 
 export async function deletePoll(formData: FormData) {
-  const cookieStore = await cookies();
-  const supabase = createSupabaseServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
+  const { user, supabase } = await getAuthenticatedUser();
 
   const pollId = formData.get('id') as string;
 
@@ -84,7 +77,6 @@ export async function deletePoll(formData: FormData) {
   }
 
   try {
-    // Verify user is the creator before deleting
     const { data: poll, error: fetchError } = await supabase
       .from('polls')
       .select('creator_id')
@@ -93,11 +85,11 @@ export async function deletePoll(formData: FormData) {
 
     if (fetchError || !poll) {
       console.error('Error fetching poll for deletion or poll not found:', fetchError);
-      throw new Error('Poll not found or you don\'t have permission to delete it.');
+      return { error: 'Poll not found or you don\'t have permission to delete it.' };
     }
 
     if (poll.creator_id !== user.id) {
-      throw new Error('You do not have permission to delete this poll.');
+      return { error: 'You do not have permission to delete this poll.' };
     }
 
     const { error: deleteError } = await supabase
@@ -107,42 +99,44 @@ export async function deletePoll(formData: FormData) {
 
     if (deleteError) {
       console.error('Error deleting poll:', deleteError);
-      throw new Error(deleteError.message || 'Failed to delete poll.');
+      return { error: deleteError.message || 'Failed to delete poll.' };
     }
 
     revalidatePath('/dashboard');
-    // Successfully deleted and revalidated, implicit void return is fine
+    return { success: true };
 
   } catch (error) {
-    // Check if the error is a Next.js redirect error and re-throw it
-    if (error && typeof error === 'object' && 'message' in error && (error.message as string).includes('NEXT_REDIRECT')) {
-      throw error;
-    }
+    handleNextRedirectError(error);
     console.error('Unexpected error during poll deletion:', error);
-    throw new Error('An unexpected error occurred during deletion.');
+    return { error: 'An unexpected error occurred during deletion.' };
   }
 }
 
 export async function updatePoll(formData: FormData) {
-  const cookieStore = await cookies();
-  const supabase = createSupabaseServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
+  const { user, supabase } = await getAuthenticatedUser();
 
   const pollId = formData.get('id') as string;
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
   const options = formData.getAll('options[]') as string[];
 
-  if (!pollId || !title || options.length < 2 || options.some(option => !option.trim())) {
-    return { error: 'Poll ID, title, and at least two non-empty options are required for update.' };
+  const parsed = PollSchema.safeParse({
+    title,
+    description: description || undefined,
+    options: options.filter(option => option.trim() !== ''),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues.map(issue => issue.message).join(', ') };
+  }
+
+  const validatedData = parsed.data;
+
+  if (!pollId) {
+    return { error: 'Poll ID is required for update.' };
   }
 
   try {
-    // Verify user is the creator before updating
     const { data: existingPoll, error: fetchError } = await supabase
       .from('polls')
       .select('creator_id')
@@ -151,30 +145,23 @@ export async function updatePoll(formData: FormData) {
 
     if (fetchError || !existingPoll) {
       console.error('Error fetching poll for update or poll not found:', fetchError);
-      throw new Error('Poll not found or you don\'t have permission to update it.');
+      return { error: 'Poll not found or you don\'t have permission to update it.' };
     }
 
     if (existingPoll.creator_id !== user.id) {
-      throw new Error('You do not have permission to update this poll.');
+      return { error: 'You do not have permission to update this poll.' };
     }
 
-    // Update poll details
     const { error: updatePollError } = await supabase
       .from('polls')
-      .update({ title, description, updated_at: new Date().toISOString() })
+      .update({ title: validatedData.title, description: validatedData.description, updated_at: new Date().toISOString() })
       .eq('id', pollId);
 
     if (updatePollError) {
       console.error('Error updating poll details:', updatePollError);
-      throw new Error(updatePollError.message || 'Failed to update poll details.');
+      return { error: updatePollError.message || 'Failed to update poll details.' };
     }
 
-    // Handle options: A more robust implementation would compare existing options
-    // and perform inserts, updates, or deletes. For simplicity here, we'll delete
-    // all existing options and re-insert new ones. This is acceptable for many cases
-    // but might lose vote history if not carefully designed.
-
-    // Delete existing options
     const { error: deleteOptionsError } = await supabase
       .from('poll_options')
       .delete()
@@ -182,11 +169,10 @@ export async function updatePoll(formData: FormData) {
 
     if (deleteOptionsError) {
       console.error('Error deleting existing poll options:', deleteOptionsError);
-      throw new Error(deleteOptionsError.message || 'Failed to update poll options.');
+      return { error: deleteOptionsError.message || 'Failed to update poll options.' };
     }
 
-    // Insert new options
-    const optionsToInsert = options.map((optionText, index) => ({
+    const optionsToInsert = validatedData.options.map((optionText, index) => ({
       poll_id: pollId,
       text: optionText,
       order_index: index,
@@ -198,27 +184,22 @@ export async function updatePoll(formData: FormData) {
 
     if (insertOptionsError) {
       console.error('Error inserting new poll options:', insertOptionsError);
-      throw new Error(insertOptionsError.message || 'Failed to insert new poll options.');
+      return { error: insertOptionsError.message || 'Failed to insert new poll options.' };
     }
 
     revalidatePath('/dashboard');
     revalidatePath(`/poll/${pollId}`);
-    redirect('/dashboard'); // Redirect to dashboard after successful update
+    redirect('/dashboard');
 
   } catch (error) {
-    // Check if the error is a Next.js redirect error and re-throw it
-    if (error && typeof error === 'object' && 'message' in error && (error.message as string).includes('NEXT_REDIRECT')) {
-      throw error;
-    }
+    handleNextRedirectError(error);
     console.error('Unexpected error during poll update:', error);
-    throw new Error('An unexpected error occurred during update.');
+    return { error: 'An unexpected error occurred during update.' };
   }
 }
 
 export async function submitVote(formData: FormData) {
-  const cookieStore = await cookies();
-  const supabase = createSupabaseServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user, supabase } = await getAuthenticatedUser();
 
   const pollId = formData.get('pollId') as string;
   const optionId = formData.get('optionId') as string;
@@ -228,10 +209,10 @@ export async function submitVote(formData: FormData) {
   }
 
   try {
-    const headersList = await headers();
+    const headersList = headers();
     const ipAddress = headersList.get('x-forwarded-for') || headersList.get('x-real-ip') || 'UNKNOWN';
     const userAgent = headersList.get('user-agent') || 'UNKNOWN';
-    const sessionFingerprint = cookieStore.get('session_fingerprint')?.value || 'UNKNOWN'; // You might want a more robust way to generate this
+    const sessionFingerprint = cookies().get('session_fingerprint')?.value || 'UNKNOWN';
 
     let voteData: any = {
       poll_id: pollId,
@@ -250,7 +231,7 @@ export async function submitVote(formData: FormData) {
       .insert(voteData);
 
     if (error) {
-      if (error.code === '23505') { // Unique constraint violation
+      if (error.code === '23505') {
         return { error: 'You have already voted in this poll.' };
       }
       console.error('Error submitting vote:', error);
@@ -258,14 +239,13 @@ export async function submitVote(formData: FormData) {
     }
 
     revalidatePath(`/poll/${pollId}`);
-    revalidatePath(`/poll/${pollId}/results`); // Revalidate results page as well
+    revalidatePath(`/poll/${pollId}/results`);
     redirect(`/poll/${pollId}/results`);
 
   } catch (error) {
-    if (error && typeof error === 'object' && 'message' in error && (error.message as string).includes('NEXT_REDIRECT')) {
-      throw error;
-    }
+    handleNextRedirectError(error);
     console.error('Unexpected error during vote submission:', error);
     return { error: 'An unexpected error occurred.' };
   }
 }
+
