@@ -14,12 +14,33 @@ import { useToast } from '@/components/ui/use-toast';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-type PollFormValues = z.infer<typeof PollSchema>;
+// Create a client-specific schema that matches your form structure
+const ClientPollSchema = z.object({
+  title: z.string()
+    .min(10, 'Poll question must be at least 10 characters.')
+    .max(200, 'Poll question must not exceed 200 characters.'),
+  description: z.string().optional(),
+  options: z.array(
+    z.object({
+      value: z.string()
+        .min(1, 'Option cannot be empty.')
+        .max(100, 'Option must not exceed 100 characters.')
+    })
+  )
+    .min(2, 'You must provide at least 2 poll options.')
+    .max(10, 'You can provide a maximum of 10 poll options.')
+    .refine((items) => new Set(items.map(item => item.value.toLowerCase())).size === items.length, {
+      message: "Duplicate options are not allowed.",
+      path: ["options"],
+    }),
+});
+
+type PollFormValues = z.infer<typeof ClientPollSchema>;
 
 const defaultValues: Partial<PollFormValues> = {
   title: '',
   description: '',
-  options: [{ value: '' }, { value: '' }], // Initialize with objects for useFieldArray
+  options: [{ value: '' }, { value: '' }],
 };
 
 export function PollForm() {
@@ -28,7 +49,7 @@ export function PollForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<PollFormValues>({
-    resolver: zodResolver(PollSchema),
+    resolver: zodResolver(ClientPollSchema),
     defaultValues,
     mode: 'onChange',
   });
@@ -45,8 +66,13 @@ export function PollForm() {
     if (data.description) {
       formData.append('description', data.description);
     }
-    // Ensure options are sent as strings for the Server Action
-    data.options.forEach((option) => formData.append('options[]', option.value));
+    
+    // Extract just the option values for the server
+    data.options.forEach((option) => {
+      if (option.value.trim() !== '') {
+        formData.append('options[]', option.value);
+      }
+    });
 
     try {
       const result = await createPoll(formData);
@@ -57,12 +83,9 @@ export function PollForm() {
           variant: 'destructive',
         });
       } 
-      // No else block here for success toast, as createPoll redirects on success.
-      // The redirect itself implies success.
     } catch (error) {
-      // Check if the error is a Next.js redirect error and re-throw it
       if (error && typeof error === 'object' && 'message' in error && (error.message as string).includes('NEXT_REDIRECT')) {
-        throw error; // Re-throw the redirect error so Next.js can handle it
+        throw error;
       }
       console.error('Unexpected error during poll creation form submission:', error);
       toast({

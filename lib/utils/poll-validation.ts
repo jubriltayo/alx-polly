@@ -6,16 +6,13 @@ export const PollSchema = z.object({
     .max(200, 'Poll question must not exceed 200 characters.'),
   description: z.string().optional(),
   options: z.array(
-    z.object({
-      value: z.string()
-        .min(1, 'Option cannot be empty.')
-        .max(100, 'Option must not exceed 100 characters.')
-    })
+    z.string()
+      .min(1, 'Option cannot be empty.')
+      .max(100, 'Option must not exceed 100 characters.')
   )
     .min(2, 'You must provide at least 2 poll options.')
     .max(10, 'You can provide a maximum of 10 poll options.')
-    .refine((items) => new Set(items.map(item => item.value.toLowerCase())).size === items.length, {
+    .refine((items) => new Set(items.map(item => item.toLowerCase())).size === items.length, {
       message: "Duplicate options are not allowed.",
-      path: ["options"],
     }),
 });
