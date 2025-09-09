@@ -5,20 +5,53 @@ import { createServerClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { handleApiError } from '@/lib/utils/error-helpers';
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const cookieStore = cookies();
-  const supabase = createServerClient(cookieStore);
-  const pollId = params.id;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+// Helper function to handle authentication and poll authorization
+async function getAuthAndPoll(pollId: string, cookieStore: ReturnType<typeof cookies>) {
+  const supabase = createServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+    return { response: new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
-    });
+    }), supabase: null, user: null };
+  }
+
+  const { data: poll, error: fetchError } = await supabase
+    .from('polls')
+    .select('creator_id')
+    .eq('id', pollId)
+    .single();
+
+  if (fetchError || !poll) {
+    return { response: new NextResponse(JSON.stringify({ error: 'Poll not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' },
+    }), supabase, user };
+  }
+
+  if (poll.creator_id !== user.id) {
+    return { response: new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    }), supabase, user };
+  }
+
+  return { response: null, supabase, user };
+}
+
+export async function PUT(request: Request, { params }: { params: { id: string } }) {
+  const cookieStore = cookies();
+  const pollId = params.id;
+
+  const { response, supabase, user } = await getAuthAndPoll(pollId, cookieStore);
+  if (response) {
+    return response;
+  }
+
+  if (!supabase || !user) { // Should ideally not happen if response is null
+    return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 
   try {
@@ -42,26 +75,6 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 
     const validatedData = parsed.data;
-
-    const { data: existingPoll, error: fetchError } = await supabase
-      .from('polls')
-      .select('creator_id')
-      .eq('id', pollId)
-      .single();
-
-    if (fetchError || !existingPoll) {
-      return new NextResponse(JSON.stringify({ error: 'Poll not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (existingPoll.creator_id !== user.id) {
-      return new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
 
     const { error: updatePollError } = await supabase
       .from('polls')
@@ -111,41 +124,18 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   const cookieStore = cookies();
-  const supabase = createServerClient(cookieStore);
   const pollId = params.id;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { response, supabase, user } = await getAuthAndPoll(pollId, cookieStore);
+  if (response) {
+    return response;
+  }
 
-  if (!user) {
-    return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (!supabase || !user) { // Should ideally not happen if response is null
+    return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 
   try {
-    const { data: poll, error: fetchError } = await supabase
-      .from('polls')
-      .select('creator_id')
-      .eq('id', pollId)
-      .single();
-
-    if (fetchError || !poll) {
-      return new NextResponse(JSON.stringify({ error: 'Poll not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (poll.creator_id !== user.id) {
-      return new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
     const { error: deleteError } = await supabase
       .from('polls')
       .delete()
