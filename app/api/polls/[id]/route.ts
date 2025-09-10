@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { PollSchema } from '@/lib/utils/poll-validation';
-import { createServerClient } from '@/lib/supabase/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { handleApiError } from '@/lib/utils/error-helpers';
 
 
 // Helper function to handle authentication and poll authorization
 async function getAuthAndPoll(pollId: string, cookieStore: ReturnType<typeof cookies>) {
-  const supabase = createServerClient(cookieStore);
+  const supabase = createSupabaseServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
@@ -41,9 +41,9 @@ async function getAuthAndPoll(pollId: string, cookieStore: ReturnType<typeof coo
   return { response: null, supabase, user };
 }
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, params: Promise<{ id: string }>) {
   const cookieStore = cookies();
-  const pollId = params.id;
+  const { id: pollId } = await params;
 
   const { response, supabase, user } = await getAuthAndPoll(pollId, cookieStore);
   if (response) {
@@ -56,12 +56,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
   try {
     const json = await request.json();
-    const { title, description, options } = json;
+    const { title, description, options } = json ?? {};
+    const normalizedOptions = Array.isArray(options) ? options.filter((option: unknown) => typeof option === 'string' && option.trim() !== '') : [];
 
     const parsed = PollSchema.safeParse({
       title,
-      description: description || undefined,
-      options: options.filter((option: string) => option.trim() !== ''),
+      description: typeof description === 'string' && description.trim() !== '' ? description : undefined,
+      options: normalizedOptions,
     });
 
     if (!parsed.success) {
@@ -76,36 +77,16 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
     const validatedData = parsed.data;
 
-    const { error: updatePollError } = await supabase
-      .from('polls')
-      .update({ title: validatedData.title, description: validatedData.description, updated_at: new Date().toISOString() })
-      .eq('id', pollId);
+    const { error: rpcError } = await supabase
+      .rpc('update_poll_with_options', {
+        p_poll_id: pollId,
+        p_title: validatedData.title,
+        p_description: validatedData.description ?? null,
+        p_options: validatedData.options,
+      });
 
-    if (updatePollError) {
-      return handleApiError(updatePollError);
-    }
-
-    const { error: deleteOptionsError } = await supabase
-      .from('poll_options')
-      .delete()
-      .eq('poll_id', pollId);
-
-    if (deleteOptionsError) {
-      return handleApiError(deleteOptionsError);
-    }
-
-    const optionsToInsert = validatedData.options.map((optionText, index) => ({
-      poll_id: pollId,
-      text: optionText,
-      order_index: index,
-    }));
-
-    const { error: insertOptionsError } = await supabase
-      .from('poll_options')
-      .insert(optionsToInsert);
-
-    if (insertOptionsError) {
-      return handleApiError(insertOptionsError);
+    if (rpcError) {
+      return handleApiError(rpcError);
     }
 
     return new NextResponse(null, { status: 204 });
@@ -122,9 +103,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, params: Promise<{ id: string }>) {
   const cookieStore = cookies();
-  const pollId = params.id;
+  const { id: pollId } = await params;
 
   const { response, supabase, user } = await getAuthAndPoll(pollId, cookieStore);
   if (response) {
