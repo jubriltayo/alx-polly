@@ -1,6 +1,12 @@
 // Add your form validation helpers here
 export function isRequired(value: unknown): boolean {
-  return value !== undefined && value !== null && value !== '';
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+  return true;
 }
 
 export function isValidEmail(email: string): boolean {

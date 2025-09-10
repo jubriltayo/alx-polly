@@ -1,34 +1,68 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { PollSchema } from '@/lib/utils/poll-validation';
-import { createServerClient } from '@/lib/supabase/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { handleApiError } from '@/lib/utils/error-helpers';
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  const cookieStore = cookies();
-  const supabase = createServerClient(cookieStore);
-  const pollId = params.id;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+// Helper function to handle authentication and poll authorization
+async function getAuthAndPoll(pollId: string, cookieStore: ReturnType<typeof cookies>) {
+  const supabase = createSupabaseServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+    return { response: new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
-    });
+    }), supabase: null, user: null };
+  }
+
+  const { data: poll, error: fetchError } = await supabase
+    .from('polls')
+    .select('creator_id')
+    .eq('id', pollId)
+    .single();
+
+  if (fetchError || !poll) {
+    return { response: new NextResponse(JSON.stringify({ error: 'Poll not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' },
+    }), supabase, user };
+  }
+
+  if (poll.creator_id !== user.id) {
+    return { response: new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    }), supabase, user };
+  }
+
+  return { response: null, supabase, user };
+}
+
+export async function PUT(request: Request, params: Promise<{ id: string }>) {
+  const cookieStore = cookies();
+  const { id: pollId } = await params;
+
+  const { response, supabase, user } = await getAuthAndPoll(pollId, cookieStore);
+  if (response) {
+    return response;
+  }
+
+  if (!supabase || !user) { // Should ideally not happen if response is null
+    return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 
   try {
     const json = await request.json();
-    const { title, description, options } = json;
+    const { title, description, options } = json ?? {};
+    const normalizedOptions = Array.isArray(options) ? options.filter((option: unknown) => typeof option === 'string' && option.trim() !== '') : [];
 
     const parsed = PollSchema.safeParse({
       title,
-      description: description || undefined,
-      options: options.filter((option: string) => option.trim() !== ''),
+      description: typeof description === 'string' && description.trim() !== '' ? description : undefined,
+      options: normalizedOptions,
     });
 
     if (!parsed.success) {
@@ -43,56 +77,16 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
     const validatedData = parsed.data;
 
-    const { data: existingPoll, error: fetchError } = await supabase
-      .from('polls')
-      .select('creator_id')
-      .eq('id', pollId)
-      .single();
-
-    if (fetchError || !existingPoll) {
-      return new NextResponse(JSON.stringify({ error: 'Poll not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
+    const { error: rpcError } = await supabase
+      .rpc('update_poll_with_options', {
+        p_poll_id: pollId,
+        p_title: validatedData.title,
+        p_description: validatedData.description ?? null,
+        p_options: validatedData.options,
       });
-    }
 
-    if (existingPoll.creator_id !== user.id) {
-      return new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    const { error: updatePollError } = await supabase
-      .from('polls')
-      .update({ title: validatedData.title, description: validatedData.description, updated_at: new Date().toISOString() })
-      .eq('id', pollId);
-
-    if (updatePollError) {
-      return handleApiError(updatePollError);
-    }
-
-    const { error: deleteOptionsError } = await supabase
-      .from('poll_options')
-      .delete()
-      .eq('poll_id', pollId);
-
-    if (deleteOptionsError) {
-      return handleApiError(deleteOptionsError);
-    }
-
-    const optionsToInsert = validatedData.options.map((optionText, index) => ({
-      poll_id: pollId,
-      text: optionText,
-      order_index: index,
-    }));
-
-    const { error: insertOptionsError } = await supabase
-      .from('poll_options')
-      .insert(optionsToInsert);
-
-    if (insertOptionsError) {
-      return handleApiError(insertOptionsError);
+    if (rpcError) {
+      return handleApiError(rpcError);
     }
 
     return new NextResponse(null, { status: 204 });
@@ -109,43 +103,20 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, params: Promise<{ id: string }>) {
   const cookieStore = cookies();
-  const supabase = createServerClient(cookieStore);
-  const pollId = params.id;
+  const { id: pollId } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { response, supabase, user } = await getAuthAndPoll(pollId, cookieStore);
+  if (response) {
+    return response;
+  }
 
-  if (!user) {
-    return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (!supabase || !user) { // Should ideally not happen if response is null
+    return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 
   try {
-    const { data: poll, error: fetchError } = await supabase
-      .from('polls')
-      .select('creator_id')
-      .eq('id', pollId)
-      .single();
-
-    if (fetchError || !poll) {
-      return new NextResponse(JSON.stringify({ error: 'Poll not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (poll.creator_id !== user.id) {
-      return new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
     const { error: deleteError } = await supabase
       .from('polls')
       .delete()
