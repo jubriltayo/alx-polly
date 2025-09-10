@@ -5,7 +5,8 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { PollSchema } from '@/lib/utils/poll-validation';
 import { cookies, headers } from 'next/headers';
-import { getAuthenticatedUser } from '@/lib/utils/auth-helpers';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser, getServerClient } from '@/lib/utils/auth-helpers';
 import { handleNextRedirectError } from '@/lib/utils/error-helpers';
 
 /**
@@ -332,8 +333,7 @@ export async function updatePoll(formData: FormData) {
  *   - Triggers revalidation of poll and results pages and redirects the user to the results view after a successful vote.
  */
 export async function submitVote(formData: FormData) {
-  // Fetches the current authenticated user and a Supabase client bound to their session.
-  const { user, supabase } = await getAuthenticatedUser();
+  const { supabase, user } = await getServerClient()
 
   // Extracts poll and option IDs from the submitted form data.
   const pollId = formData.get('pollId') as string;

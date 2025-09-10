@@ -12,3 +12,11 @@ export async function getAuthenticatedUser() {
   }
   return { user, supabase };
 }
+
+export async function getServerClient() {
+  const cookieStore = cookies();
+  const supabase = createSupabaseServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+
+  return { user, supabase };
+}
