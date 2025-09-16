@@ -1,0 +1,12 @@
+---
+description: Realtime voting rules
+globs:
+alwaysApply: true
+---
+
+## Realtime Voting Rules
+1. Always store and serve live counts from `poll_options.votes_count`.
+2. Use Postgres triggers to keep `votes_count` in sync with `votes`.
+3. Subscribe only to `poll_options` changes scoped by `poll_id`.
+4. Never fetch all `votes` rows on results page; always use `votes_count`.
+5. Keep subscriptions client-side and ensure cleanup on unmount.
