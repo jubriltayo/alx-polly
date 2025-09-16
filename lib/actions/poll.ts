@@ -60,7 +60,7 @@ export async function createPoll(formData: FormData) {
     // Using .single() ensures we only get one poll back (should always be the case).
     const { data: pollData, error: pollError } = await supabase
       .from('polls')
-      .insert({ title: validatedData.title, description: validatedData.description, creator_id: user.id })
+      .insert({ title: validatedData.title, description: validatedData.description, creator_id: user.id, is_active: true })
       .select()
       .single();
 
@@ -76,7 +76,7 @@ export async function createPoll(formData: FormData) {
     // order_index is used to maintain the order in which options were entered.
     const optionsToInsert = validatedData.options.map((optionText, index) => ({
       poll_id: pollId,
-      text: optionText,
+      value: optionText,
       order_index: index,
     }));
 
@@ -255,7 +255,7 @@ export async function updatePoll(formData: FormData) {
     // Update poll metadata (title, description, updated_at timestamp).
     const { error: updatePollError } = await supabase
       .from('polls')
-      .update({ title: validatedData.title, description: validatedData.description, updated_at: new Date().toISOString() })
+      .update({ title: validatedData.title, description: validatedData.description, updated_at: new Date().toISOString(), is_active: true })
       .eq('id', pollId);
 
     if (updatePollError) {
@@ -280,7 +280,7 @@ export async function updatePoll(formData: FormData) {
     // Prepare new options for bulk insert, preserving order via order_index.
     const optionsToInsert = validatedData.options.map((optionText, index) => ({
       poll_id: pollId,
-      text: optionText,
+      value: optionText,
       order_index: index,
     }));
 
@@ -333,72 +333,90 @@ export async function updatePoll(formData: FormData) {
  *   - Triggers revalidation of poll and results pages and redirects the user to the results view after a successful vote.
  */
 export async function submitVote(formData: FormData) {
-  const { supabase, user } = await getServerClient()
-
-  // Extracts poll and option IDs from the submitted form data.
+  const { supabase, user } = await getServerClient();
   const pollId = formData.get('pollId') as string;
   const optionId = formData.get('optionId') as string;
 
-  // Early return if required fields are missing; prevents DB call and gives user-friendly error.
   if (!pollId || !optionId) {
     return { error: 'Poll ID and selected option are required.' };
   }
 
   try {
-    // --- Metadata Gathering for Auditing & Abuse Prevention ---
-    // These headers are used to help identify unique voters (for RLS and analytics).
-    const headersList = headers();
-    // Prefer proxy headers for real client IP; fallback to 'UNKNOWN' if not available.
+    const headersList = await headers();
     const ipAddress = headersList.get('x-forwarded-for') || headersList.get('x-real-ip') || 'UNKNOWN';
-    // User agent is useful for analytics and fraud detection.
     const userAgent = headersList.get('user-agent') || 'UNKNOWN';
-    // Session fingerprint is a custom cookie to help prevent duplicate/anonymous votes.
-    const sessionFingerprint = cookies().get('session_fingerprint')?.value || 'UNKNOWN';
-
-    // --- Data Transformation: Prepare Vote Payload ---
-    // All votes are tracked with metadata for auditability and to enforce "one vote per user/session/IP".
-    let voteData: any = {
-      poll_id: pollId,
-      option_id: optionId,
-      ip_address: ipAddress,
-      user_agent: userAgent,
-      session_fingerprint: sessionFingerprint,
-    };
-
-    // If the user is authenticated, associate their user ID for accountability and to enforce unique votes.
-    if (user) {
-      voteData.user_id = user.id;
+    
+    let sessionFingerprint = null;
+    
+    if (!user) {
+      sessionFingerprint = `${ipAddress}-${userAgent}`;
     }
 
-    // --- Insert Vote ---
-    // Relies on DB unique constraints (user_id/session_fingerprint/ip_address per poll) to prevent duplicates.
-    const { error } = await supabase
+    // Check for existing vote
+    const { data: existingVote } = await supabase
       .from('votes')
-      .insert(voteData);
+      .select('id')
+      .eq('poll_id', pollId)
+      .eq(user ? 'user_id' : 'session_fingerprint', user ? user.id : sessionFingerprint)
+      .maybeSingle();
 
-    if (error) {
-      // 23505 is the Postgres unique violation code; this means the user/session/IP already voted.
-      if (error.code === '23505') {
-        return { error: 'You have already voted in this poll.' };
-      }
-      // Log unexpected DB errors for ops, but return a generic error to the user.
-      console.error('Error submitting vote:', error);
-      return { error: error.message || 'Failed to submit vote.' };
+    if (existingVote) {
+      return { error: 'You have already voted in this poll.' };
     }
 
-    // --- UI Consistency: Revalidate Poll and Results Pages ---
-    // Ensures that the latest vote is reflected immediately for all users.
+    // STEP 1: Insert the vote
+    const { error: voteError } = await supabase
+      .from('votes')
+      .insert({
+        poll_id: pollId,
+        option_id: optionId,
+        user_id: user?.id,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        session_fingerprint: sessionFingerprint
+      });
+
+    if (voteError) {
+      console.error('Vote insertion error:', voteError);
+      return { error: 'Failed to submit vote. Please try again.' };
+    }
+
+    // STEP 2: MANUALLY update votes_count - SIMPLE AND DIRECT
+    const { error: updateError } = await supabase
+      .from('poll_options')
+      .update({ 
+        votes_count: await getCurrentVotesCount(supabase, optionId) + 1 
+      })
+      .eq('id', optionId);
+
+    if (updateError) {
+      console.error('Votes count update error:', updateError);
+      // Don't return error - the vote was recorded successfully
+    }
+
     revalidatePath(`/poll/${pollId}`);
     revalidatePath(`/poll/${pollId}/results`);
-    // Redirects the user to the results page after voting for instant feedback.
     redirect(`/poll/${pollId}/results`);
 
   } catch (error) {
-    // Special handling for Next.js redirect errors (don't swallow them).
     handleNextRedirectError(error);
-    // Catch-all for unexpected errors; logs for ops, returns generic error to user.
     console.error('Unexpected error during vote submission:', error);
     return { error: 'An unexpected error occurred.' };
   }
 }
 
+// Helper function to get current votes count
+async function getCurrentVotesCount(supabase: any, optionId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('poll_options')
+    .select('votes_count')
+    .eq('id', optionId)
+    .single();
+
+  if (error || !data) {
+    console.error('Error getting current votes count:', error);
+    return 0;
+  }
+
+  return data.votes_count || 0;
+}

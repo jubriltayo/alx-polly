@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 type VoteFormProps = {
   pollId: string;
-  options: { id: string; text: string }[];
+  options: { id: string; value: string }[];
 };
 
 export function VoteForm({ pollId, options }: VoteFormProps) {
@@ -45,8 +45,6 @@ export function VoteForm({ pollId, options }: VoteFormProps) {
         variant: "destructive",
       });
     } else {
-      // The server action handles the redirect on success, so no explicit redirect here
-      // But we can show a success toast before the redirect takes effect
       toast({
         title: "Vote submitted!",
         description: "Thank you for your vote.",
@@ -60,7 +58,7 @@ export function VoteForm({ pollId, options }: VoteFormProps) {
         {options.map((option) => (
           <div key={option.id} className="flex items-center space-x-2">
             <RadioGroupItem value={option.id} id={option.id} />
-            <Label htmlFor={option.id}>{option.text}</Label>
+            <Label htmlFor={option.id}>{option.value}</Label>
           </div>
         ))}
       </RadioGroup>

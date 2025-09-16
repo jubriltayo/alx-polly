@@ -58,21 +58,24 @@ export type Database = {
           id: string
           order_index: number
           poll_id: string | null
-          text: string
+          value: string
+          votes_count: number
         }
         Insert: {
           created_at?: string | null
           id?: string
           order_index: number
           poll_id?: string | null
-          text: string
+          value: string
+          votes_count?: number
         }
         Update: {
           created_at?: string | null
           id?: string
           order_index?: number
           poll_id?: string | null
-          text?: string
+          value?: string
+          votes_count?: number
         }
         Relationships: [
           {
